@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Study Sorter</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    .category {
+      margin: 10px 0;
+      padding: 10px;
+      border: 2px solid #ccc;
+      min-height: 100px;
+    }
+    .category h3 {
+      margin-top: 0;
+    }
+    .item {
+      padding: 5px 10px;
+      margin: 5px;
+      background: #e0f0ff;
+      border: 1px solid #aaa;
+      cursor: move;
+      position: relative;
+    }
+    .drop-zone {
+      border: 2px dashed #aaa;
+      min-height: 50px;
+      padding: 5px;
+      margin-top: 5px;
+    }
+    select, input[type="text"] {
+      margin: 5px;
+    }
+    .explanation {
+      display: none;
+      font-size: 0.9em;
+      color: #333;
+      margin-top: 3px;
+      padding-left: 10px;
+    }
+    .item-controls {
+      position: absolute;
+      top: 3px;
+      right: 5px;
+      font-size: 0.8em;
+    }
+    .item-controls button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #555;
+    }
+    .show-answers {
+      display: block;
+      background: none;
+      border: none;
+      color: #007bff;
+      padding-left: 10px;
+      cursor: pointer;
+      font-size: 0.9em;
+      margin-top: 3px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Study Sorter</h1>
+  <div>
+    <label>Category Name: <input id="categoryInput" /></label>
+    <button onclick="addCategory()">Add Category</button>
+  </div>
+  <div id="categories"></div>
+  <div>
+    <label>Item: <input id="itemInput" /></label>
+    <label>Explanation (optional): <input id="explanationInput" /></label>
+    <label>Assign to:
+      <select id="categorySelect"></select>
+    </label>
+    <button onclick="addItem()">Add Item to Selected Category</button>
+    <button onclick="shuffleItems()">Scramble Items</button>
+  </div>
+  <div id="items"></div>
+
+  <script>
+    let categories = [];
+    let items = [];
+
+    function addCategory() {
+      const name = document.getElementById("categoryInput").value.trim();
+      if (!name) return;
+      const id = `cat_${Date.now()}`;
+      categories.push({ id, name });
+      const catDiv = document.createElement("div");
+      catDiv.className = "category";
+      catDiv.dataset.id = id;
+      catDiv.innerHTML = `<h3>${name}</h3><div class="drop-zone" ondrop="drop(event)" ondragover="allowDrop(event)"></div>`;
+      document.getElementById("categories").appendChild(catDiv);
+
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = name;
+      document.getElementById("categorySelect").appendChild(option);
+
+      document.getElementById("categoryInput").value = "";
+    }
+
+    function addItem() {
+      const value = document.getElementById("itemInput").value.trim();
+      const explanation = document.getElementById("explanationInput").value.trim();
+      const selectedCategory = document.getElementById("categorySelect").value;
+      if (!value || !selectedCategory) return;
+      const item = {
+        id: `item_${Date.now()}`,
+        text: value,
+        correctCategory: selectedCategory,
+        explanation: explanation
+      };
+      items.push(item);
+      renderItems();
+      document.getElementById("itemInput").value = "";
+      document.getElementById("explanationInput").value = "";
+    }
+
+    function renderItems() {
+      const itemsDiv = document.getElementById("items");
+      itemsDiv.innerHTML = "";
+      items.forEach(item => {
+        const el = document.createElement("div");
+        el.className = "item";
+        el.draggable = true;
+        el.id = item.id;
+        el.ondragstart = drag;
+        el.innerHTML = `
+          <div>${item.text}</div>
+          <div class="item-controls">
+            <button onclick="editItem('${item.id}')">✏️</button>
+            <button onclick="deleteItem('${item.id}')">🗑️</button>
+          </div>
+          <button class="show-answers" onclick="toggleExplanation(this, '${item.id}')">Show Explanation</button>
+          <div class="explanation">${item.explanation}</div>
+        `;
+        itemsDiv.appendChild(el);
+      });
+    }
+
+    function toggleExplanation(button, id) {
+      const explanation = button.parentElement.querySelector(".explanation");
+      const showing = explanation.style.display === "block";
+      explanation.style.display = showing ? "none" : "block";
+      button.textContent = showing ? "Show Explanation" : "Hide Explanation";
+    }
+
+    function editItem(id) {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      document.getElementById("itemInput").value = item.text;
+      document.getElementById("explanationInput").value = item.explanation;
+      document.getElementById("categorySelect").value = item.correctCategory;
+      deleteItem(id);
+    }
+
+    function deleteItem(id) {
+      items = items.filter(i => i.id !== id);
+      renderItems();
+      document.querySelectorAll(".drop-zone .item").forEach(el => {
+        if (el.id === id) el.remove();
+      });
+    }
+
+    function shuffleItems() {
+      items = items.sort(() => Math.random() - 0.5);
+      renderItems();
+      document.querySelectorAll(".drop-zone").forEach(zone => zone.innerHTML = "");
+    }
+
+    function allowDrop(ev) {
+      ev.preventDefault();
+    }
+
+    function drag(ev) {
+      ev.dataTransfer.setData("text", ev.target.id);
+    }
+
+    function drop(ev) {
+      ev.preventDefault();
+      const data = ev.dataTransfer.getData("text");
+      const item = document.getElementById(data);
+      ev.target.appendChild(item);
+      const catId = ev.target.closest(".category").dataset.id;
+      const matched = items.find(i => i.id === data);
+      if (matched) {
+        if (matched.correctCategory === catId) {
+          item.style.backgroundColor = "#d4edda"; // green
+          const explanationDiv = item.querySelector(".explanation");
+          const toggleBtn = item.querySelector(".show-answers");
+          if (explanationDiv) explanationDiv.style.display = "none";
+          if (toggleBtn) toggleBtn.style.display = "inline";
+        } else {
+          item.style.backgroundColor = "#f8d7da"; // red
+          const explanationDiv = item.querySelector(".explanation");
+          const toggleBtn = item.querySelector(".show-answers");
+          if (explanationDiv) explanationDiv.style.display = "none";
+          if (toggleBtn) toggleBtn.style.display = "none";
+        }
+      }
+    }
+  </script>
+</body>
+</html>
